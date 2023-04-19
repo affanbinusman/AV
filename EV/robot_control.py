@@ -2,8 +2,7 @@ import torch
 import numpy as np
 import cv2 as cv
 import ev3_dc as ev3
-from thread_task import Task, Repeated, Sleep
-from time import sleep
+from thread_task import Sleep
 
 # -------- INIT CONSTS --------
 
