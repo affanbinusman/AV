@@ -10,32 +10,38 @@ from time import sleep
 img_width = 1920
 img_height = 1440
 thresh = 0.3 # confidence threshold
-deadband = 0.1 # for left-right steering, maximum distance of block from image midline before steering kicks in
-sweep_y_min = 0.8 # min y-value to be in range for removal
-sweep_x_min = 0.3 # min x-value to be in range for removal
-sweep_x_max = 0.7 # max x-value to be in range for removal
-is_moving_left = 0 # flag = 1 indicates motor is moving
-is_moving_right = 0 # flag = 1 indicates motor is moving
+centerline = 0.5 # value between 0 and 1 indicating the horizontal postition of vehicle center in the image
+deadband = 0.025 # block must be at least this far from centerline to change steering
+sweep_y_min = 0.9 # min y-value to be in range for removal
+sweep_x_min = 0.4 # min x-value to be in range for removal
+sweep_x_max = 0.8 # max x-value to be in range for removal
+is_moving = False # indicates whether vehicle is moving
+speed = 5 # vehicle movement speed
+turn_radius = 100 # turn radius
 
-# ----- SETUP EV3 MOTORS --------
+# ----- SETUP VEHICLE --------
 
-# # left side drive
-# left = my_motor = ev3.Motor(
-# 	ev3.PORT_D,
-# 	protocol=ev3.USB
-# )
-# 
-# # right side drive
-# right = my_motor = ev3.Motor(
-# 	ev3.PORT_A,
-# 	protocol=ev3.USB
-# )
-# 
-# # sweeper motor
-# sweeper = my_motor = ev3.Motor(
-# 	ev3.PORT_B,
-# 	protocol=ev3.USB
-# )
+my_ev3 = ev3.EV3(protocol=ev3.USB) # init ev3
+
+vehicle = ev3.TwoWheelVehicle( # setup drive controls
+    0.01518,  # radius_wheel
+    0.11495,  # tread
+    ev3_obj=my_ev3
+    )
+vehicle.polarity_left = -1
+vehicle.polarity_right = -1
+
+sweep_motor = ev3.Motor( # setup sweep motor
+	ev3.PORT_B,
+	ev3_obj = my_ev3
+) 
+
+sweep = ( # design sweep action
+	sweep_motor.move_by(-60, speed = 100, brake=True) +
+	Sleep(0.5) +
+	sweep_motor.move_by(60, speed = 20, brake=True) +
+	sweep_motor.stop_as_task(brake=False)
+)
 
 # -------- RUN ----------
 
@@ -67,12 +73,10 @@ while True:
 	# Show bounding boxes and labels on the current frame
 	results.render()
 
-    # Display the resulting frame
+	# Display the resulting frame
 	cv.imshow('frame', img)
 	
-	sleep(1)
-    
-    # exit on command
+	# exit on command
 	if cv.waitKey(1) == ord('q'):
 		break
 	
@@ -105,45 +109,41 @@ while True:
 			np.delete(det_real, lowest_idx, 0)
 			
 			# stop drive motors to sweep
-	# 		left.stop()
-	# 		is_moving_left = 0
-	# 		right.stop()
-	# 		is_moving_right = 0
-			print("stopping to sweep")
+			if is_moving:
+				vehicle.stop()
+				is_moving = False
 			
-			# --- sweep arm to remove block
-			print("sweeping")
+			# sweep arm to remove block
+			sweep.start()
+			sweep.join()
+			sweep.stop()
 	else:
 		# no more blocks, stop drive motors
-		print("stopping")
+		if is_moving:
+			vehicle.stop()
+			is_moving = False
 		continue
 	
 	# navigate to next brick with largest y-val (lowest in frame)
 	if len(det_real) > 0:
+		# calculate proportional turn radius
 		lowest_idx = np.argmax(center_y)
 		lowest_x = center_x[lowest_idx]
-		if lowest_x < 0.5 - deadband: # brick is to the left of the deadband
-	# 		if is_moving_right:
-	# 			right.stop()
-	# 			is_moving_right = 0
-	# 		if not is_moving_left:
-	# 			left.start_move()
-	# 			is_moving_left = 1
-			print("turning left")
-		elif lowest_x > 0.5 + deadband: # brick is to the right of the deadband
-	# 		if is_moving_left:
-	# 			left.stop()
-	# 			is_moving_left= 0
-	# 		if not is_moving_left:
-	# 			left.start_move()
-	# 			is_moving_left = 1
-		print("turning right")
-		else: # brick is straight ahead
-			# --- turn both drive motors
-			print("driving straight")
+		if lowest_x < centerline - deadband: # block is left of center, turn left
+			turn = turn_radius * -1
+		elif lowest_x > centerline + deadband: # block is right of center, turn right
+			turn = turn_radius
+		else: # block is dead ahead, go straight
+			turn = 0
+		
+		# move
+		vehicle.move(speed, turn)
+		is_moving = True
 	else:
 		# no more blocks, stop drive motors
-		print("stopping")
+		if is_moving:
+			vehicle.stop()
+			is_moving = False
 		continue
 
 # Release the capture and destroy the window
