@@ -10,12 +10,13 @@ img_width = 1920
 img_height = 1440
 thresh = 0.3 # confidence threshold
 centerline = 0.5 # value between 0 and 1 indicating the horizontal postition of vehicle center in the image
+deadband = 0.025 # block must be at least this far from centerline to change steering
 sweep_y_min = 0.9 # min y-value to be in range for removal
-sweep_x_min = 0 # min x-value to be in range for removal
-sweep_x_max = 1 # max x-value to be in range for removal
+sweep_x_min = 0.4 # min x-value to be in range for removal
+sweep_x_max = 0.8 # max x-value to be in range for removal
 is_moving = False # indicates whether vehicle is moving
-fwd_speed = 20 # vehicle movement fwd_speed
-max_turn_speed = 100 # max turn speed
+speed = 5 # vehicle movement speed
+turn_radius = 100 # turn radius
 
 # ----- SETUP VEHICLE --------
 
@@ -68,24 +69,18 @@ while True:
 	# Run inference on the current frame
 	results = model(img)
 	
-	# get detections
-	det_all = results.xyxy[0].detach().numpy()
-	
 	# Show bounding boxes and labels on the current frame
 	results.render()
-	
-	# return color to open-cv standard
-	img = cv.cvtColor(img, cv.COLOR_RGB2BGR)
 
 	# Display the resulting frame
 	cv.imshow('frame', img)
 	
 	# exit on command
 	if cv.waitKey(1) == ord('q'):
-		if is_moving:
-			vehicle.stop()
-			is_moving = False
 		break
+	
+	# get detections
+	det_all = results.xyxy[0].detach().numpy()
 	
 	# throw out detections with confidence < threshold
 	keep_mask = det_all[:,4] > thresh
@@ -133,10 +128,15 @@ while True:
 		# calculate proportional turn radius
 		lowest_idx = np.argmax(center_y)
 		lowest_x = center_x[lowest_idx]
-		turn = int((lowest_x - 0.5) * 2 * max_turn_speed)
+		if lowest_x < centerline - deadband: # block is left of center, turn left
+			turn = turn_radius * -1
+		elif lowest_x > centerline + deadband: # block is right of center, turn right
+			turn = turn_radius
+		else: # block is dead ahead, go straight
+			turn = 0
 		
 		# move
-		vehicle.move(fwd_speed, turn)
+		vehicle.move(speed, turn)
 		is_moving = True
 	else:
 		# no more blocks, stop drive motors
