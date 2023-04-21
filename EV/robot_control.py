@@ -20,6 +20,8 @@ max_turn_speed = 100 # max turn speed
 search_length = 9 # search time allotment before exiting
 search_speed = 10 # speed during search
 search_turn = -200 # spin in place during search
+explore_turn = list(range(-200,200+1)) 	# list of spin options during exploration 
+len_explore_turn = len(explore_turn) 	# constant used for making random selections from explore_turn list
 
 # ----- SETUP VEHICLE --------
 
@@ -94,10 +96,24 @@ def search():
 			return
 		current_time = time.time()
 		if current_time - start_time > search_length:
+			# Random exploration
+			explore()
+		elif current_time - start_time > 20 * search_length: 	# If exploration fails - call to exit
 			# exit program
 			vehicle.stop()
 			is_moving = False
 			exit()
+
+def explore():
+	turnFreq = np.random.randint(0,10)
+	if turnFreq > 7:            # 20% turning
+		turn = explore_turn[np.random.randint(0, len_explore_turn)]
+		vehicle.move(search_speed, turn)
+		time.sleep(np.random.randint(3,6))
+		return
+	else:         
+		vehicle.move(fwd_speed, 0)		# 80% moving foward
+	is_moving = True
 
 # -------- RUN ----------
 
