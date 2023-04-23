@@ -79,41 +79,51 @@ def get_dets(cap, model):
 	keep_mask = det_all[:,4] > thresh
 	return det_all[keep_mask,:]
 
-# start search if no blocks detected
-def search():	
-	# start search
-	start_time = time.time()
-	vehicle.move(search_speed, search_turn)
-	is_moving = True
-	
-	# exit if block detected or search time expired
-	while True:
-		det = get_dets(cap, model)
-		if len(det) > 0:
-			# resume running
-			vehicle.stop()
-			is_moving = False
-			return
-		current_time = time.time()
-		if current_time - start_time > search_length:
-			# Random exploration
-			explore()
-		elif current_time - start_time > 20 * search_length: 	# If exploration fails - call to exit
-			# exit program
-			vehicle.stop()
-			is_moving = False
-			exit()
+# # start search if no blocks detected
+# def search():	
+# 	# start search
+# 	start_time = time.time()
+# # 	vehicle.move(search_speed, search_turn)
+# # 	is_moving = True
+# 	
+# 	# exit if block detected or search time expired
+# 	while True:
+# 		det = get_dets(cap, model)
+# 		if len(det) > 0:
+# 			# resume running
+# 			vehicle.stop()
+# 			is_moving = False
+# 			return
+# # 		if current_time - start_time > search_length:
+# 			# Random exploration
+# 		explore()
+# 		return
 
 def explore():
-	turnFreq = np.random.randint(0,10)
-	if turnFreq > 7:            # 20% turning
-		turn = explore_turn[np.random.randint(0, len_explore_turn)]
-		vehicle.move(search_speed, turn)
-		time.sleep(np.random.randint(3,6))
-		return
-	else:         
-		vehicle.move(fwd_speed, 0)		# 80% moving foward
-	is_moving = True
+	start_exp_time = time.time()
+
+	while time.time() - start_exp_time < 20:
+		turnFreq = np.random.randint(0,10)
+		if turnFreq > 8:            # 20% turning
+			turn = explore_turn[np.random.randint(0, len_explore_turn)]
+			vehicle.move(search_speed, turn)	
+		else:         
+			vehicle.move(fwd_speed, 0)		# 80% moving foward
+		is_moving = True
+		
+		start_exp_time2 = time.time()
+		while time.time() - start_exp_time2 < 3:
+			det = get_dets(cap, model)
+			if len(det) > 0:
+			# resume running
+				vehicle.stop()
+				is_moving = False
+				return
+	
+	# exit program
+	vehicle.stop()
+	is_moving = False
+	exit()
 
 # -------- RUN ----------
 
@@ -173,7 +183,7 @@ while True:
 			sweep.stop()
 		# no more blocks detected, run search
 	else:
-		search()
+		explore()
 		continue
 	
 	# navigate to next brick with largest y-val (lowest in frame)
@@ -188,7 +198,7 @@ while True:
 		is_moving = True
 	else:
 		# no more blocks, run search
-		search()
+		explore()
 		continue
 
 # Release the capture and destroy the window
